@@ -11,7 +11,7 @@
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
-[Bb]uild/
+Build/
 
 # CodeWarrior temporary files
 *.tdt
@@ -61,3 +61,10 @@ __pycache__/
 
 
 .vscode/
+
+
+# ignore compiled files
+*.o
+*.a
+*.so
+*.d
