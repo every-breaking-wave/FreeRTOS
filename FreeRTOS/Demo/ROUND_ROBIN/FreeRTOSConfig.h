@@ -39,7 +39,6 @@
 * See http://www.freertos.org/a00110.html
 *----------------------------------------------------------*/
 
-#define EDF  1
 
 #define configUSE_TRACE_FACILITY                 0
 #define configGENERATE_RUN_TIME_STATS            0

@@ -160,7 +160,7 @@ static void T2(void *pvParameters)
     while (1)
     {
         printf("T2 executing\n");
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(200));
     }
 }
 
@@ -169,7 +169,7 @@ static void T3(void *pvParameters)
     while (1)
     {
         printf("T3 Executing\n");
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(300));
     }
 }
 
@@ -178,6 +178,6 @@ static void T4(void *pvParameters)
     while (1)
     {
         printf("T4 executing\n");
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(400));
     }
 }
