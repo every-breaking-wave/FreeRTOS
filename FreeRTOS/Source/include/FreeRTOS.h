@@ -3155,9 +3155,13 @@ typedef struct xSTATIC_TCB
     StaticListItem_t xDummy3[ 2 ];
     UBaseType_t uxDummy5;
     void * pxDummy6;
-    #if (configUSE_EDF_SCHEDULER == 1)
+    #if ( configUSE_EDF_SCHEDULER == 1)
         UBaseType_t uxDummy7;
         UBaseType_t uxDummy8;
+    #endif
+    #if ( configUSE_EDF_SCHEDULER == 1 )
+        UBaseType_t uxDummy30;
+        UBaseType_t uxDummy31;
     #endif
     #if ( configNUMBER_OF_CORES > 1 )
         BaseType_t xDummy23;

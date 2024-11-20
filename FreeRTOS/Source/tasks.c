@@ -394,6 +394,11 @@ typedef struct tskTaskControlBlock       /* The old naming convention is used to
         TickType_t uxAbsDeadline;                    /**< The absolute deadline of the task. */
     #endif
 
+    #if (configUSE_WEIGHTED_ROUND_ROBIN == 1)
+        UBaseType_t uxWeight;                       /**< The weight of the task. */
+        UBaseType_t uxRemainingTicks;               /**< The remaining ticks of the task. */
+    #endif
+
     #if ( configNUMBER_OF_CORES > 1 )
         volatile BaseType_t xTaskRunState;      /**< Used to identify the core the task is running on, if the task is running. Otherwise, identifies the task's state - not running or yielding. */
         UBaseType_t uxTaskAttributes;           /**< Task's attributes - currently used to identify the idle tasks. */
