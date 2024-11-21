@@ -42,7 +42,7 @@
 #define configUSE_TRACE_FACILITY                 0
 #define configGENERATE_RUN_TIME_STATS            0
 
-#define configUSE_PREEMPTION                     0
+#define configUSE_PREEMPTION                     1
 #define configUSE_IDLE_HOOK                      0
 #define configUSE_TICK_HOOK                      1
 #define configCPU_CLOCK_HZ                       ( ( unsigned long ) 25000000 )
@@ -61,7 +61,10 @@
 #define configUSE_QUEUE_SETS                     1
 #define configUSE_COUNTING_SEMAPHORES            1
 #define configUSE_TIME_SLICING                   1
-#define configUSE_WEIGHTED_ROUND_ROBIN           1   // USE_PREEMPTION must be 0,  TIME_SLICING must be 1
+#define configSLICE_INTERVAL                     ( ( TickType_t ) 10 )
+#define configUSE_WEIGHTED_ROUND_ROBIN           1   // USE_PREEMPTION must be 1,  TIME_SLICING must be 1
+
+#define configNUMBER_OF_CORES                   1
 
 #define configMAX_PRIORITIES                     ( 9UL )
 #define configMAX_CO_ROUTINE_PRIORITIES          ( 2 )
@@ -139,4 +142,5 @@
 
 #define configUSE_EDF_SCHEDULER 0
 
+#define configUSE_TRACE_FACILITY  1
 #endif /* FREERTOS_CONFIG_H */

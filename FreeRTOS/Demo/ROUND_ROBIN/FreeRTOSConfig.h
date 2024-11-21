@@ -43,11 +43,12 @@
 #define configUSE_TRACE_FACILITY                 0
 #define configGENERATE_RUN_TIME_STATS            0
 
-#define configUSE_PREEMPTION                     0
+#define configUSE_PREEMPTION                     1
 #define configUSE_IDLE_HOOK                      0
 #define configUSE_TICK_HOOK                      1
 #define configCPU_CLOCK_HZ                       ( ( unsigned long ) 25000000 )
 #define configTICK_RATE_HZ                       ( ( TickType_t ) 1000 )
+#define configSLICE_INTERVAL                     ( ( TickType_t ) 10 )
 #define configMINIMAL_STACK_SIZE                 ( ( unsigned short ) 80 )
 #define configTOTAL_HEAP_SIZE                    ( ( size_t ) ( 60 * 1024 ) )
 #define configMAX_TASK_NAME_LEN                  ( 12 )
@@ -63,7 +64,7 @@
 
 #define configUSE_QUEUE_SETS                     1
 #define configUSE_COUNTING_SEMAPHORES            1
-#define configUSE_TIME_SLICING                   1 // USE_PREEMPTION must be 0, USE_EDF_SCHEDULER must be 0
+#define configUSE_TIME_SLICING                   1 // USE_PREEMPTION must be 1, USE_EDF_SCHEDULER must be 0
 #define configUSE_EDF_SCHEDULER                  0
 
 #define configMAX_PRIORITIES                     ( 9UL )

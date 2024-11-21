@@ -283,7 +283,7 @@ typedef struct xLIST
  * \ingroup LinkedList
  */
 #if ( configNUMBER_OF_CORES == 1 )
-    #if (configUSE_EDF_SCHEDULER == 1)
+    #if (configUSE_EDF_SCHEDULER == 0)
         #define listGET_OWNER_OF_NEXT_ENTRY( pxTCB, pxList )                                       \
             do {                                                                                       \
                 List_t * const pxConstList = ( pxList );                                               \

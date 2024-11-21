@@ -62,7 +62,6 @@
 /* Kernel includes. */
 #include "FreeRTOS.h"
 #include "task.h"
-#include "timers.h"
 #include "queue.h"
 
 /* Priorities at which the tasks are created. */
@@ -75,7 +74,7 @@
 #define mainTIMER_SEND_FREQUENCY_MS pdMS_TO_TICKS(2000UL)
 
 /* The number of items the queue can hold at once. */
-#define mainQUEUE_LENGTH (4)
+#define mainQUEUE_LENGTH (10)
 
 /* The values sent to the queue receive task from the queue send task and the
  * queue send software timer respectively. */
@@ -90,18 +89,10 @@
 // static void prvQueueReceiveTask( void * pvParameters );
 // static void prvQueueSendTask( void * pvParameters );
 
-/*
- * The callback function executed when the software timer expires.
- */
-// static void prvQueueSendTimerCallback( TimerHandle_t xTimerHandle );
-
 /*-----------------------------------------------------------*/
 
 /* The queue used by both tasks. */
 static QueueHandle_t xQueue = NULL;
-
-/* A software timer that is started from the tick hook. */
-static TimerHandle_t xTimer = NULL;
 
 /* Test functions */
 unsigned long ulTaskNumber[configEXPECTED_NO_RUNNING_TASKS];
@@ -114,11 +105,10 @@ static void T2(void *pvParameters);
 static void T3(void *pvParameters);
 static void T4(void *pvParameters);
 
-const unsigned long wT1 = 100;
-const unsigned long wT2 = 70;
-const unsigned long wT3 = 50;
-const unsigned long wT4 = 400;
-
+const unsigned int wT1 = 4;
+const unsigned int wT2 = 3;
+const unsigned int wT3 = 2;
+const unsigned int wT4 = 1;
 
 /*-----------------------------------------------------------*/
 
@@ -131,10 +121,10 @@ void main_blinky(void)
     if (xQueue != NULL)
     {
         printf("Starting round-robin-weight Scheduler\n");
-        xTaskCreate(T1, (signed char *)"T1", 1000, NULL, 1, NULL);
-        xTaskCreate(T2, (signed char *)"T2", 1000, NULL, 1, NULL);
-        xTaskCreate(T3, (signed char *)"T3", 1000, NULL, 1, NULL);
-        xTaskCreate(T4, (signed char *)"T4", 1000, NULL, 1, NULL);
+        xTaskCreate(T1, (signed char *)"T1", 1000, &wT1, 1, &xT1);
+        xTaskCreate(T2, (signed char *)"T2", 1000, &wT2, 1, &xT2);
+        xTaskCreate(T3, (signed char *)"T3", 1000, &wT3, 1, &xT3);
+        xTaskCreate(T4, (signed char *)"T4", 1000, &wT4, 1, &xT4);
         /* Start the tasks running. */
         vTaskStartScheduler();
     }
@@ -157,7 +147,8 @@ static void T1(void *pvParameters)
         // i = 0xFFFFFFFE + 0xA;
         // printf("%x\n", i);
         printf("T1 Executing\n");
-        vTaskDelay(pdMS_TO_TICKS(100));
+        for (int i = 0; i < 1000000; i++);
+            // vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
 
@@ -166,7 +157,8 @@ static void T2(void *pvParameters)
     while (1)
     {
         printf("T2 executing\n");
-        vTaskDelay(pdMS_TO_TICKS(100));
+        for (int i = 0; i < 1000000; i++);
+            // vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
 
@@ -175,7 +167,8 @@ static void T3(void *pvParameters)
     while (1)
     {
         printf("T3 Executing\n");
-        vTaskDelay(pdMS_TO_TICKS(100));
+        for (int i = 0; i < 1000000; i++);
+            // vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
 
@@ -184,6 +177,7 @@ static void T4(void *pvParameters)
     while (1)
     {
         printf("T4 executing\n");
-        vTaskDelay(pdMS_TO_TICKS(100));
+        for (int i = 0; i < 1000000; i++);
+            // vTaskDelay(pdMS_TO_TICKS(100));
     }
 }

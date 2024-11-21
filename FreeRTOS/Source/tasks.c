@@ -29,6 +29,7 @@
 /* Standard includes. */
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 /* Defining MPU_WRAPPERS_INCLUDED_FROM_API_FILE prevents task.h from redefining
  * all the API functions to use the MPU wrappers.  That should only be done when
@@ -2036,6 +2037,13 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
         pxNewTCB->uxDeadLine = *(TickType_t *)pvParameters;
     }
     #endif
+
+    #if (configUSE_WEIGHTED_ROUND_ROBIN == 1)
+    {
+        pxNewTCB->uxWeight = *(BaseType_t *)pvParameters;
+        pxNewTCB->uxRemainingTicks = pxNewTCB->uxWeight * configSLICE_INTERVAL;
+    }
+    #endif
     if( pxCreatedTask != NULL )
     {
         /* Pass the handle out in an anonymous way.  The handle can be used to
@@ -2057,12 +2065,15 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
          * updated. */
         taskENTER_CRITICAL();
         {
+            printf("reach prvAddNewTaskToReadyList\n");
             uxCurrentNumberOfTasks = ( UBaseType_t ) ( uxCurrentNumberOfTasks + 1U );
 
             if( pxCurrentTCB == NULL )
             {
                 /* There are no other tasks, or all the other tasks are in
                  * the suspended state - make this the current task. */
+                printf("change current tcb from NULL to %s\n", pxNewTCB->pcTaskName);
+
                 pxCurrentTCB = pxNewTCB;
 
                 if( uxCurrentNumberOfTasks == ( UBaseType_t ) 1 )
@@ -2086,6 +2097,7 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
                 {
                     if( pxCurrentTCB->uxPriority <= pxNewTCB->uxPriority )
                     {
+                        printf("change current tcb from %s to %s\n", pxCurrentTCB->pcTaskName, pxNewTCB->pcTaskName);
                         pxCurrentTCB = pxNewTCB;
                     }
                     else
@@ -2109,6 +2121,7 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
             #endif /* configUSE_TRACE_FACILITY */
             traceTASK_CREATE( pxNewTCB );
 
+            printf("add task %s to ready list\n", pxNewTCB->pcTaskName);
             prvAddTaskToReadyList( pxNewTCB );
 
             portSETUP_TCB( pxNewTCB );
@@ -4716,6 +4729,29 @@ BaseType_t xTaskCatchUpTicks( TickType_t xTicksToCatchUp )
 #endif /* INCLUDE_xTaskAbortDelay */
 /*----------------------------------------------------------*/
 
+void printAllTasks()
+{
+    UBaseType_t uxArraySize = uxTaskGetNumberOfTasks();
+    TaskStatus_t *pxTaskStatusArray = pvPortMalloc( uxArraySize * sizeof( TaskStatus_t ) );
+
+    if (pxTaskStatusArray != NULL)
+    {
+        uxArraySize = uxTaskGetSystemState(pxTaskStatusArray, uxArraySize, NULL);
+
+        printf("Current TCB Info:\n");
+        for (UBaseType_t i = 0; i < uxArraySize; i++)
+        {
+            printf("Task: %s, Priority: %d, State: %d\n",
+                   pxTaskStatusArray[i].pcTaskName,
+                   pxTaskStatusArray[i].uxCurrentPriority,
+                   pxTaskStatusArray[i].eCurrentState);
+        }
+
+        vPortFree(pxTaskStatusArray);
+    }
+}
+
+
 BaseType_t xTaskIncrementTick( void )
 {
     TCB_t * pxTCB;
@@ -4856,6 +4892,35 @@ BaseType_t xTaskIncrementTick( void )
         {
             #if ( configNUMBER_OF_CORES == 1 )
             {
+                #if ( configUSE_WEIGHTED_ROUND_ROBIN == 1 )
+                {  
+                    if( pxCurrentTCB->uxPriority != tskIDLE_PRIORITY )
+                    {
+                        if( pxCurrentTCB->uxWeight > ( BaseType_t ) 0U )
+                        {
+                            pxCurrentTCB->uxRemainingTicks -= 1U;
+
+                            if( pxCurrentTCB->uxRemainingTicks == ( TickType_t ) 0U )
+                            {
+                                xSwitchRequired = pdTRUE;
+                                pxCurrentTCB->uxRemainingTicks = pxCurrentTCB->uxWeight * configSLICE_INTERVAL;
+                            }
+                            else
+                            {
+                                mtCOVERAGE_TEST_MARKER();
+                            }
+                        }
+                        else
+                        {
+                            mtCOVERAGE_TEST_MARKER();
+                        }
+                    }
+                    else
+                    {
+                        mtCOVERAGE_TEST_MARKER();
+                    }
+                }
+                #else
                 if( listCURRENT_LIST_LENGTH( &( pxReadyTasksLists[ pxCurrentTCB->uxPriority ] ) ) > 1U )
                 {
                     xSwitchRequired = pdTRUE;
@@ -4864,6 +4929,7 @@ BaseType_t xTaskIncrementTick( void )
                 {
                     mtCOVERAGE_TEST_MARKER();
                 }
+                #endif
             }
             #else /* #if ( configNUMBER_OF_CORES == 1 ) */
             {

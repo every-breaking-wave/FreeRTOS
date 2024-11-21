@@ -3159,7 +3159,7 @@ typedef struct xSTATIC_TCB
         UBaseType_t uxDummy7;
         UBaseType_t uxDummy8;
     #endif
-    #if ( configUSE_EDF_SCHEDULER == 1 )
+    #if ( configUSE_WEIGHTED_ROUND_ROBIN == 1 )
         UBaseType_t uxDummy30;
         UBaseType_t uxDummy31;
     #endif
