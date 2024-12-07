@@ -98,7 +98,8 @@ static void prvQueueSendTimerCallback( TimerHandle_t xTimerHandle );
 /*-----------------------------------------------------------*/
 
 /* The queue used by both tasks. */
-static QueueHandle_t xQueue = NULL;
+/* This is used to message among the tasks */
+static QueueHandle_t xQueue = NULL; 
 
 /* A software timer that is started from the tick hook. */
 static TimerHandle_t xTimer = NULL;

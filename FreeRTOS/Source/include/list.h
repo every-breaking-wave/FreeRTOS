@@ -299,7 +299,7 @@ typedef struct xLIST
     #else
         #define listGET_OWNER_OF_NEXT_ENTRY( pxTCB, pxList )                                       \
             do {                                                                                   \
-                ( pxTCB ) = listGET_OWNER_OF_HEAD_ENTRY( pxList );		                           \	
+                ( pxTCB ) = listGET_OWNER_OF_HEAD_ENTRY( pxList );		                           \
             }                                                                                      \
             while( 0 )
     #endif
