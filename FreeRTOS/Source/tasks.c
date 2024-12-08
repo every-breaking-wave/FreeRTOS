@@ -2065,7 +2065,6 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
          * updated. */
         taskENTER_CRITICAL();
         {
-            printf("reach prvAddNewTaskToReadyList\n");
             uxCurrentNumberOfTasks = ( UBaseType_t ) ( uxCurrentNumberOfTasks + 1U );
 
             if( pxCurrentTCB == NULL )

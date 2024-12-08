@@ -112,22 +112,25 @@ static TimerHandle_t xTimer = NULL;
 /* Timer callback used to create new tasks */
 static void taskCreate(void *pvParameters);
 
+static char bitmap = 0;
+
 /* Test functions */
 unsigned long ulTaskNumber[configEXPECTED_NO_RUNNING_TASKS];
 
 TaskHandle_t xTskCreate, xT1, xT2, xT3, xT4;
 
 // static List_t tskSets
+static int stage = 0;
+
+const unsigned long dT1 = 100;
+const unsigned long dT2 = 70;
+const unsigned long dT3 = 50;
+const unsigned long dT4 = 400;
 
 static void T1(void *pvParameters);
 static void T2(void *pvParameters);
 static void T3(void *pvParameters);
 static void T4(void *pvParameters);
-
-const unsigned int wT0 = 4;
-const unsigned int wT1 = 3;
-const unsigned int wT2 = 2;
-const unsigned int wT3 = 1;
 
 /*-----------------------------------------------------------*/
 
@@ -142,7 +145,9 @@ void main_test(void)
     if (xQueue != NULL)
     {
         printf("starting test scheduler\n");
-        xTaskCreate(taskCreate, (signed char *)"task create", 1000, NULL, 1, &xTskCreate);
+        xTaskCreate(T1, (signed char *)"T1", configMINIMAL_STACK_SIZE, (void *)&dT1, 1, &xT1);
+        xTaskCreate(T2, (signed char *)"T2", configMINIMAL_STACK_SIZE, (void *)&dT2, 1, &xT2);
+        xTaskCreate(T3, (signed char *)"T3", configMINIMAL_STACK_SIZE, (void *)&dT3, 1, &xT3);
         vTaskStartScheduler();
     }
 
@@ -157,9 +162,7 @@ static void taskCreate(void *pvParameters)
     printf("creating task...");
     for (;;)
     {
-        xTaskCreate(T1, (signed char *)"T1", 1000, NULL, 1, &xT1);
-        xTaskCreate(T2, (signed char *)"T2", 1000, NULL, 1, &xT2);
-        xTaskCreate(T3, (signed char *)"T3", 1000, NULL, 1, &xT3);
+
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 
@@ -168,34 +171,37 @@ static void taskCreate(void *pvParameters)
 
 static void T1(void *pvParameters)
 {
-    while (1)
-    {
-        // i = 0xFFFFFFFE + 0xA;
-        // printf("%x\n", i);
-        printf("T1 Executing\n");
-        // for (int i = 0; i < 1000000; i++);
-        // vTaskDelay(pdMS_TO_TICKS(100));
-    }
+    printf("T1 Executing\n");
+    // while (1)
+    // {
+    //     // i = 0xFFFFFFFE + 0xA;
+    //     // printf("%x\n", i);
+
+    //     // for (int i = 0; i < 1000000; i++);
+    //     // vTaskDelay(pdMS_TO_TICKS(100));
+    // }
 }
 
 static void T2(void *pvParameters)
 {
-    while (1)
-    {
-        printf("T2 executing\n");
-        // for (int i = 0; i < 1000000; i++);
-        // vTaskDelay(pdMS_TO_TICKS(100));
-    }
+    printf("T2 executing\n");
+    // while (1)
+    // {
+
+    //     // for (int i = 0; i < 1000000; i++);
+    //     // vTaskDelay(pdMS_TO_TICKS(100));
+    // }
 }
 
 static void T3(void *pvParameters)
 {
-    while (1)
-    {
-        printf("T3 Executing\n");
-        // for (int i = 0; i < 1000000; i++);
-        // vTaskDelay(pdMS_TO_TICKS(100));
-    }
+    printf("T3 Executing\n");
+    // while (1)
+    // {
+    //     printf("T3 Executing\n");
+    //     // for (int i = 0; i < 1000000; i++);
+    //     // vTaskDelay(pdMS_TO_TICKS(100));
+    // }
 }
 
 static void T4(void *pvParameters)

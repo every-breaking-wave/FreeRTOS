@@ -27,6 +27,11 @@
 #ifndef FREERTOS_CONFIG_H
 #define FREERTOS_CONFIG_H
 
+#define configUSE_DEFAULT_SCHEDULING
+// #define configUSE_EDF_SCHEDULING
+// #define configUSE_RR_SCHEDULING
+// #define configUSE_WRR_SCHEDULING
+
 /*-----------------------------------------------------------
  * Application specific definitions.
  *
@@ -137,6 +142,25 @@ void vAssertCalled(const char *pcFileName,
 
 #define configEXPECTED_NO_RUNNING_TASKS (5)
 
-#define configUSE_EDF_SCHEDULER 1
+
+
+#ifdef configUSE_DEFAULT_SCHEDULING
+
+#endif
+
+#ifdef configUSE_EDF_SCHEDULING
+    #define configUSE_EDF_SCHEDULER 1
+#endif
+
+#ifdef configUSE_RR_SCHEDULING
+    #define configUSE_EDF_SCHEDULER 0
+    #define configUSE_TIME_SLICING                   1
+#endif
+
+#ifdef configUSE_WRR_SCHEDULING
+    #define configUSE_TIME_SLICING                   1
+    #define configSLICE_INTERVAL                     ( ( TickType_t ) 10 )
+    #define configUSE_WEIGHTED_ROUND_ROBIN           1
+#endif
 
 #endif /* FREERTOS_CONFIG_H */
