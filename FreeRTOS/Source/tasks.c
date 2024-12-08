@@ -93,10 +93,12 @@
         portYIELD_WITHIN_API();                                  \
     } while( 0 )
 
+        #if ( configUSE_EDF_SCHEDULER == 0 )
         #define taskYIELD_ANY_CORE_IF_USING_PREEMPTION( pxTCB ) \
     do {                                                        \
         if( pxCurrentTCB->uxPriority < ( pxTCB )->uxPriority )  \
         {                                                       \
+            printf("PREEEMPTION happends! From %s to %s\n", pxCurrentTCB->pcTaskName, ( pxTCB )->pcTaskName); \
             portYIELD_WITHIN_API();                             \
         }                                                       \
         else                                                    \
@@ -104,6 +106,20 @@
             mtCOVERAGE_TEST_MARKER();                           \
         }                                                       \
     } while( 0 )
+        #else
+        #define taskYIELD_ANY_CORE_IF_USING_PREEMPTION( pxTCB ) \
+    do {                                                        \
+        if( pxCurrentTCB->uxAbsDeadline < ( pxTCB )->uxAbsDeadline )  \
+        {                                                       \
+            printf("PREEEMPTION happends! From %s to %s\n", pxCurrentTCB->pcTaskName, ( pxTCB )->pcTaskName); \
+            portYIELD_WITHIN_API();                             \
+        }                                                       \
+        else                                                    \
+        {                                                       \
+            mtCOVERAGE_TEST_MARKER();                           \
+        }                                                       \
+    } while( 0 )
+        #endif
 
     #else /* if ( configNUMBER_OF_CORES == 1 ) */
 
@@ -2094,7 +2110,6 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
          * updated. */
         taskENTER_CRITICAL();
         {
-            DEBUG_PRINT("reach prvAddNewTaskToReadyList\n");
             uxCurrentNumberOfTasks = ( UBaseType_t ) ( uxCurrentNumberOfTasks + 1U );
 
             if( pxCurrentTCB == NULL )
@@ -2127,7 +2142,6 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
                     if( pxCurrentTCB->uxPriority <= pxNewTCB->uxPriority )
                     {
                         DEBUG_PRINT("change current tcb from %s to %s\n", pxCurrentTCB->pcTaskName, pxNewTCB->pcTaskName);
-                        DEBUG_PRINT("from %d to %d\n", pxCurrentTCB->uxPriority, pxNewTCB->uxPriority);
                         pxCurrentTCB = pxNewTCB;
                     }
                     else
@@ -4836,6 +4850,41 @@ void printAllTasks()
     }
 #endif
 
+BaseType_t xJudgePriorityChange( TCB_t *pxTCB )
+{
+    BaseType_t xReturn = pdFALSE;
+
+    #if ( configUSE_EDF_SCHEDULER == 1 )
+    {
+        if( pxTCB->uxAbsDeadline < pxCurrentTCB->uxAbsDeadline )
+        {
+            xReturn = pdTRUE;
+        }
+        else
+        {
+            mtCOVERAGE_TEST_MARKER();
+        }
+    }
+    #else
+    {
+        if( pxTCB->uxPriority > pxCurrentTCB->uxPriority )
+        {
+            xReturn = pdTRUE;
+        }
+        else
+        {
+            mtCOVERAGE_TEST_MARKER();
+        }
+    }
+    #endif
+    if( xReturn == pdTRUE )
+    {
+        printf("PREEEMPTION happends! From %s to %s\n", pxCurrentTCB->pcTaskName, ( pxTCB )->pcTaskName); 
+    }
+
+    return xReturn;
+}
+
 
 BaseType_t xTaskIncrementTick( void )
 {
@@ -4956,14 +5005,7 @@ BaseType_t xTaskIncrementTick( void )
                              * processing time (which happens when both
                              * preemption and time slicing are on) is
                              * handled below.*/
-                            if( pxTCB->uxPriority > pxCurrentTCB->uxPriority )
-                            {
-                                xSwitchRequired = pdTRUE;
-                            }
-                            else
-                            {
-                                mtCOVERAGE_TEST_MARKER();
-                            }
+                            xSwitchRequired = xJudgePriorityChange( pxTCB );
                         }
                         #else /* #if( configNUMBER_OF_CORES == 1 ) */
                         {
@@ -8969,6 +9011,11 @@ void vTaskResetState( void )
 	{
 		tskTCB * TempTCB;
 		TempTCB = ( tskTCB * )pxTCB;
-	  return TempTCB->uxAbsDeadline = TempTCB->uxDeadLine + xTickCount;
+        TempTCB->uxAbsDeadline = TempTCB->uxDeadLine + xTickCount;
+        if(TempTCB->uxPriority > 0 && TempTCB->pcTaskName != "Tmr Svc\n")
+        {
+            printf("[EDF]: Task %s activate at tick: %d,  Deadline: %d, Absolute Deadline: %d \n", TempTCB->pcTaskName, xTickCount, TempTCB->uxDeadLine, TempTCB->uxAbsDeadline);
+        }
+	    return TempTCB->uxAbsDeadline;
 	}
 #endif	

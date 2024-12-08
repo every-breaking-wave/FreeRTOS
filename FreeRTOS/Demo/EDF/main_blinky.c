@@ -62,7 +62,7 @@
 /* Kernel includes. */
 #include "FreeRTOS.h"
 #include "task.h"
-#include "timers.h"
+// #include "timers.h"
 #include "queue.h"
 
 /* Priorities at which the tasks are created. */
@@ -90,18 +90,10 @@
 static void prvQueueReceiveTask( void * pvParameters );
 static void prvQueueSendTask( void * pvParameters );
 
-/*
- * The callback function executed when the software timer expires.
- */
-static void prvQueueSendTimerCallback( TimerHandle_t xTimerHandle );
-
 /*-----------------------------------------------------------*/
 
 /* The queue used by both tasks. */
 static QueueHandle_t xQueue = NULL;
-
-/* A software timer that is started from the tick hook. */
-static TimerHandle_t xTimer = NULL;
 
 
 /* Test functions */
@@ -118,7 +110,7 @@ static void T4( void *pvParameters );
 
 const unsigned long dT1 = 100;
 const unsigned long dT2 = 70;
-const unsigned long dT3 = 50;
+const unsigned long dT3 = 10;
 const unsigned long dT4 = 400;
 
 
@@ -134,27 +126,6 @@ void main_blinky( void )
 
     if( xQueue != NULL )
     {
-        /* Start the two tasks as described in the comments at the top of this
-         * file. */
-        // xTaskCreate( prvQueueReceiveTask,             /* The function that implements the task. */
-        //              "Rx",                            /* The text name assigned to the task - for debug only as it is not used by the kernel. */
-        //              configMINIMAL_STACK_SIZE,        /* The size of the stack to allocate to the task. */
-        //              NULL,                            /* The parameter passed to the task - not used in this simple case. */
-        //              mainQUEUE_RECEIVE_TASK_PRIORITY, /* The priority assigned to the task. */
-        //              NULL );                          /* The task handle is not required, so NULL is passed. */
-
-        // xTaskCreate( prvQueueSendTask, "TX", configMINIMAL_STACK_SIZE, NULL, mainQUEUE_SEND_TASK_PRIORITY, NULL );
-
-        // /* Create the software timer, but don't start it yet. */
-        // xTimer = xTimerCreate( "Timer",                     /* The text name assigned to the software timer - for debug only as it is not used by the kernel. */
-        //                        xTimerPeriod,                /* The period of the software timer in ticks. */
-        //                        pdTRUE,                      /* xAutoReload is set to pdTRUE, so this is an auto-reload timer. */
-        //                        NULL,                        /* The timer's ID is not used. */
-        //                        prvQueueSendTimerCallback ); /* The function executed when the timer expires. */
-
-        // xTimerStart( xTimer, 0 );                           /* The scheduler has not started so use a block time of 0. */
-
-        // /* Start the tasks and timer running. */
         // vTaskStartScheduler();
         printf("Starting EDF Scheduler\n");
         xTaskCreate( T1, ( signed char * ) "T1", configMINIMAL_STACK_SIZE, (void *)&dT1, 1 , &xT1 );		
@@ -206,24 +177,7 @@ static void prvQueueSendTask( void * pvParameters )
 }
 /*-----------------------------------------------------------*/
 
-static void prvQueueSendTimerCallback( TimerHandle_t xTimerHandle )
-{
-    const uint32_t ulValueToSend = mainVALUE_SENT_FROM_TIMER;
 
-    /* This is the software timer callback function.  The software timer has a
-     * period of two seconds and is reset each time a key is pressed.  This
-     * callback function will execute if the timer expires, which will only happen
-     * if a key is not pressed for two seconds. */
-
-    /* Avoid compiler warnings resulting from the unused parameter. */
-    ( void ) xTimerHandle;
-
-    /* Send to the queue - causing the queue receive task to unblock and
-     * write out a message.  This function is called from the timer/daemon task, so
-     * must not block.  Hence the block time is set to 0. */
-    xQueueSend( xQueue, &ulValueToSend, 0U );
-}
-/*-----------------------------------------------------------*/
 
 static void prvQueueReceiveTask( void * pvParameters )
 {
@@ -272,7 +226,9 @@ static void T1( void *pvParameters )
 		//i = 0xFFFFFFFE + 0xA;
 		//printf("%x\n", i);
 	 printf("T1 Executing\n");
-	 for(i = 0;i < 9000; i++);
+	 for(i = 0;i < 90000000; i++);
+    TickType_t currentTick = xTaskGetTickCount();
+    printf("T1 completed at tick: %u\n", currentTick);
 	 vTaskDelay( 10 / portTICK_PERIOD_MS );	
   }
 }
@@ -284,8 +240,9 @@ static void T2( void *pvParameters )
 	while(1)
 	{
 		printf("T2 executing\n");
-		for(i = 0;i < 9000; i++);
-		vTaskDelay( 20 / portTICK_PERIOD_MS);
+		for(i = 0;i < 90000000; i++);
+    TickType_t currentTick = xTaskGetTickCount();
+    printf("T2 completed at tick: %u\n", currentTick);		vTaskDelay( 20 / portTICK_PERIOD_MS);
 	}
 }
 
@@ -295,7 +252,10 @@ static void T3( void *pvParameters )
 	while(1)
 	{	
 	 printf("T3 Executing\n");
-	 for(i = 0;i < 9000; i++);
+	 for(i = 0;i < 9000000; i++);
+    // 任务结束时打印当前 tick 值
+    TickType_t currentTick = xTaskGetTickCount();
+    printf("T3 completed at tick: %u\n", currentTick);
 	 vTaskDelay( 30 / portTICK_PERIOD_MS );	
   }
 }
@@ -307,7 +267,9 @@ static void T4( void *pvParameters )
 	while(1)
 	{
 		printf("T4 executing\n");
-	  for(i = 0;i < 9000; i++);
+	  for(i = 0;i < 90000000; i++);
+    TickType_t currentTick = xTaskGetTickCount();
+    printf("T4 completed at tick: %u\n", currentTick);
 		vTaskDelay( 40 / portTICK_PERIOD_MS);
 	}
 }
