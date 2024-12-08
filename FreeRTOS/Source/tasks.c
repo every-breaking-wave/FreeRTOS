@@ -392,11 +392,7 @@
 #endif /* #if ( configNUMBER_OF_CORES > 1 ) */
 /*-----------------------------------------------------------*/
 
-typedef struct pvParameter
-{
-    UBaseType_t uxWeight;
-    TickType_t uxDeadLine;
-} pvParameter_t;
+
 
 /*
  * Task control block.  A task control block (TCB) is allocated for each task,
