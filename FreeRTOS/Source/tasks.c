@@ -2069,7 +2069,7 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
 
     #if (configUSE_MLFQ_SCHEDULER == 1)
     {
-        pxNewTCB->uxRemainingTicks = 1 * configMLFQ_UNIT_TIME_SLICE;;
+        pxNewTCB->uxRemainingTicks = 1 * configMLFQ_UNIT_TIME_SLICE;
     }
     #endif
 
@@ -4820,18 +4820,18 @@ void printAllTasks()
     void static ResetAllQueues()  // move all tasks to highest prio queues
     {
         configASSERT(configMAX_PRIORITIES >= 3);
-        for( UBaseType_t i = 2; i < configMAX_PRIORITIES; i++ )
+        for( UBaseType_t i = 1; i < configMAX_PRIORITIES; i++ )
         {
-            configASSERT( listLIST_IS_EMPTY( &( pxReadyTasksLists[ i ] ) ) == pdTRUE );
-        }
-        while( listLIST_IS_EMPTY( &( pxReadyTasksLists[ tskIDLE_PRIORITY + 1 ] ) ) != pdTRUE )
-        {
-            TCB_t *pxTCB = listGET_OWNER_OF_HEAD_ENTRY( &( pxReadyTasksLists[ tskIDLE_PRIORITY + 1 ] ) );
-            listREMOVE_ITEM( &( pxTCB->xStateListItem ) );
-            portMEMORY_BARRIER();
-            pxTCB->uxPriority = configMAX_PRIORITIES - 1;
-            pxTCB->uxRemainingTicks =  1 * configMLFQ_UNIT_TIME_SLICE;
-            prvAddTaskToReadyList( pxTCB );
+            List_t *pxList = &( pxReadyTasksLists[ i ] );
+            while( listLIST_IS_EMPTY( pxList ) != pdTRUE )
+            {
+                TCB_t *pxTCB = listGET_OWNER_OF_HEAD_ENTRY( pxList );
+                listREMOVE_ITEM( &( pxTCB->xStateListItem ) );
+                portMEMORY_BARRIER();
+                pxTCB->uxPriority = configMAX_PRIORITIES - 1;
+                pxTCB->uxRemainingTicks =  1 * configMLFQ_UNIT_TIME_SLICE;
+                prvAddTaskToReadyList( pxTCB );
+            }
         }
     }
 #endif
