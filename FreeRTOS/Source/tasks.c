@@ -4939,7 +4939,7 @@ BaseType_t xTaskIncrementTick( void )
 
         // 判断任务的deadline是否到了
         {
-            if ( xTickCount > pxCurrentTCB->uxAbsDeadline && pxCurrentTCB->xIsMissDDL == pdFALSE )
+            if ( xTickCount > pxCurrentTCB->uxAbsDeadline && pxCurrentTCB->xIsMissDDL == pdFALSE && pxCurrentTCB->uxDeadLine != 0 )
             {
                 // 任务deadline到了，需要切换到idle task
                 xSwitchRequired = pdTRUE;
