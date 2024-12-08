@@ -392,6 +392,12 @@
 #endif /* #if ( configNUMBER_OF_CORES > 1 ) */
 /*-----------------------------------------------------------*/
 
+typedef struct pvParameter
+{
+    UBaseType_t uxWeight;
+    TickType_t uxDeadLine;
+} pvParameter_t;
+
 /*
  * Task control block.  A task control block (TCB) is allocated for each task,
  * and stores task state information, including a pointer to the task's context
@@ -414,10 +420,9 @@ typedef struct tskTaskControlBlock       /* The old naming convention is used to
     UBaseType_t uxPriority;                     /**< The priority of the task.  0 is the lowest priority. */
     StackType_t * pxStack;                      /**< Points to the start of the stack. */
     // task dead line
-    #if (configUSE_EDF_SCHEDULER == 1)
-        TickType_t uxDeadLine;                       /**< The deadline of the task. */
-        TickType_t uxAbsDeadline;                    /**< The absolute deadline of the task. */
-    #endif
+    TickType_t uxDeadLine;                       /**< The deadline of the task. */
+    TickType_t uxAbsDeadline;                    /**< The absolute deadline of the task. */
+    BaseType_t xIsMissDDL;                        /**< The flag to indicate whether the task misses the deadline. */
 
     #if (configUSE_WEIGHTED_ROUND_ROBIN == 1)
         UBaseType_t uxWeight;                       /**< The weight of the task. */
@@ -2072,13 +2077,15 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
 
     #if (configUSE_EDF_SCHEDULER == 1)
     {
-        pxNewTCB->uxDeadLine = *(TickType_t *)pvParameters;
+        // pvParameters = (pvParameter_t *)pvParameters;
+        pxNewTCB->uxDeadLine = ((pvParameter_t *)pvParameters)->uxDeadLine;
     }
     #endif
 
     #if (configUSE_WEIGHTED_ROUND_ROBIN == 1)
     {
-        pxNewTCB->uxWeight = *(BaseType_t *)pvParameters;
+        // pvParameters = (pvParameter_t *)pvParameters;
+        pxNewTCB->uxWeight = ((pvParameter_t *)pvParameters)->uxWeight;
         pxNewTCB->uxRemainingTicks = pxNewTCB->uxWeight * configSLICE_INTERVAL;
     }
     #endif
@@ -2165,7 +2172,7 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
             #endif /* configUSE_TRACE_FACILITY */
             traceTASK_CREATE( pxNewTCB );
 
-            DEBUG_PRINT("add task %s to ready list\n", pxNewTCB->pcTaskName);
+            pxNewTCB->xIsMissDDL = pdFALSE;
             prvAddTaskToReadyList( pxNewTCB );
 
             portSETUP_TCB( pxNewTCB );
@@ -2500,6 +2507,7 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
             {
                 mtCOVERAGE_TEST_MARKER();
             }
+            pxCurrentTCB->xIsMissDDL = pdFALSE;
         }
         xAlreadyYielded = xTaskResumeAll();
 
@@ -2547,6 +2555,7 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
                  * This task cannot be in an event list as it is the currently
                  * executing task. */
                 prvAddCurrentTaskToDelayedList( xTicksToDelay, pdFALSE );
+                pxCurrentTCB->xIsMissDDL = pdFALSE;
             }
             xAlreadyYielded = xTaskResumeAll();
         }
@@ -4927,6 +4936,17 @@ BaseType_t xTaskIncrementTick( void )
             uxMLFQCount++;
         }
         #endif
+
+        // 判断任务的deadline是否到了
+        {
+            if ( xTickCount > pxCurrentTCB->uxAbsDeadline && pxCurrentTCB->xIsMissDDL == pdFALSE )
+            {
+                // 任务deadline到了，需要切换到idle task
+                xSwitchRequired = pdTRUE;
+                pxCurrentTCB->xIsMissDDL = pdTRUE;
+                printf("[Warning] Task %s missed deadline, current time is %d, DDL is %d, \n",  pxCurrentTCB->pcTaskName, xTickCount, pxCurrentTCB->uxAbsDeadline);
+            }
+        }
 
         /* See if this tick has made a timeout expire.  Tasks are stored in
          * the  queue in the order of their wake time - meaning once one task

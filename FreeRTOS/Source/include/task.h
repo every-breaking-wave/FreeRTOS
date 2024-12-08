@@ -3769,9 +3769,7 @@ void vTaskInternalSetTimeOutState( TimeOut_t * const pxTimeOut ) PRIVILEGED_FUNC
 
 #endif /* #if ( ( portUSING_MPU_WRAPPERS == 1 ) && ( configUSE_MPU_WRAPPERS_V1 == 0 ) && ( configENABLE_ACCESS_CONTROL_LIST == 1 ) ) */
 
-#if ( configUSE_EDF_SCHEDULER == 1 )
-			unsigned long task_ADD_DEADLINE( void * );
-#endif
+	unsigned long task_ADD_DEADLINE( void * );
 
 /* *INDENT-OFF* */
 #ifdef __cplusplus

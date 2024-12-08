@@ -3155,10 +3155,11 @@ typedef struct xSTATIC_TCB
     StaticListItem_t xDummy3[ 2 ];
     UBaseType_t uxDummy5;
     void * pxDummy6;
-    #if ( configUSE_EDF_SCHEDULER == 1)
-        UBaseType_t uxDummy7;
-        UBaseType_t uxDummy8;
-    #endif
+
+    UBaseType_t uxDummy7;
+    UBaseType_t uxDummy8;
+    UBaseType_t uxDummy41;
+    
     #if ( configUSE_WEIGHTED_ROUND_ROBIN == 1 )
         UBaseType_t uxDummy30;
     #endif
