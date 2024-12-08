@@ -3161,6 +3161,8 @@ typedef struct xSTATIC_TCB
     #endif
     #if ( configUSE_WEIGHTED_ROUND_ROBIN == 1 )
         UBaseType_t uxDummy30;
+    #endif
+    #if (configUSE_WEIGHTED_ROUND_ROBIN == 1 || configUSE_MLFQ_SCHEDULER == 1)
         UBaseType_t uxDummy31;
     #endif
     #if ( configNUMBER_OF_CORES > 1 )
