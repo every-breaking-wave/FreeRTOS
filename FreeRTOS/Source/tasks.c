@@ -93,10 +93,12 @@
         portYIELD_WITHIN_API();                                  \
     } while( 0 )
 
+        #if ( configUSE_EDF_SCHEDULER == 0 )
         #define taskYIELD_ANY_CORE_IF_USING_PREEMPTION( pxTCB ) \
     do {                                                        \
         if( pxCurrentTCB->uxPriority < ( pxTCB )->uxPriority )  \
         {                                                       \
+            printf("PREEEMPTION happends! From %s to %s\n", pxCurrentTCB->pcTaskName, ( pxTCB )->pcTaskName); \
             portYIELD_WITHIN_API();                             \
         }                                                       \
         else                                                    \
@@ -104,6 +106,20 @@
             mtCOVERAGE_TEST_MARKER();                           \
         }                                                       \
     } while( 0 )
+        #else
+        #define taskYIELD_ANY_CORE_IF_USING_PREEMPTION( pxTCB ) \
+    do {                                                        \
+        if( pxCurrentTCB->uxAbsDeadline < ( pxTCB )->uxAbsDeadline )  \
+        {                                                       \
+            printf("PREEEMPTION happends! From %s to %s\n", pxCurrentTCB->pcTaskName, ( pxTCB )->pcTaskName); \
+            portYIELD_WITHIN_API();                             \
+        }                                                       \
+        else                                                    \
+        {                                                       \
+            mtCOVERAGE_TEST_MARKER();                           \
+        }                                                       \
+    } while( 0 )
+        #endif
 
     #else /* if ( configNUMBER_OF_CORES == 1 ) */
 
@@ -376,6 +392,12 @@
 #endif /* #if ( configNUMBER_OF_CORES > 1 ) */
 /*-----------------------------------------------------------*/
 
+typedef struct pvParameter
+{
+    UBaseType_t uxWeight;
+    TickType_t uxDeadLine;
+} pvParameter_t;
+
 /*
  * Task control block.  A task control block (TCB) is allocated for each task,
  * and stores task state information, including a pointer to the task's context
@@ -398,10 +420,9 @@ typedef struct tskTaskControlBlock       /* The old naming convention is used to
     UBaseType_t uxPriority;                     /**< The priority of the task.  0 is the lowest priority. */
     StackType_t * pxStack;                      /**< Points to the start of the stack. */
     // task dead line
-    #if (configUSE_EDF_SCHEDULER == 1)
-        TickType_t uxDeadLine;                       /**< The deadline of the task. */
-        TickType_t uxAbsDeadline;                    /**< The absolute deadline of the task. */
-    #endif
+    TickType_t uxDeadLine;                       /**< The deadline of the task. */
+    TickType_t uxAbsDeadline;                    /**< The absolute deadline of the task. */
+    BaseType_t xIsMissDDL;                        /**< The flag to indicate whether the task misses the deadline. */
 
     #if (configUSE_WEIGHTED_ROUND_ROBIN == 1)
         UBaseType_t uxWeight;                       /**< The weight of the task. */
@@ -2056,20 +2077,22 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
 
     #if (configUSE_EDF_SCHEDULER == 1)
     {
-        pxNewTCB->uxDeadLine = *(TickType_t *)pvParameters;
+        // pvParameters = (pvParameter_t *)pvParameters;
+        pxNewTCB->uxDeadLine = ((pvParameter_t *)pvParameters)->uxDeadLine;
     }
     #endif
 
     #if (configUSE_WEIGHTED_ROUND_ROBIN == 1)
     {
-        pxNewTCB->uxWeight = *(BaseType_t *)pvParameters;
+        // pvParameters = (pvParameter_t *)pvParameters;
+        pxNewTCB->uxWeight = ((pvParameter_t *)pvParameters)->uxWeight;
         pxNewTCB->uxRemainingTicks = pxNewTCB->uxWeight * configSLICE_INTERVAL;
     }
     #endif
 
     #if (configUSE_MLFQ_SCHEDULER == 1)
     {
-        pxNewTCB->uxRemainingTicks = 1 * configMLFQ_UNIT_TIME_SLICE;;
+        pxNewTCB->uxRemainingTicks = 1 * configMLFQ_UNIT_TIME_SLICE;
     }
     #endif
 
@@ -2094,7 +2117,6 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
          * updated. */
         taskENTER_CRITICAL();
         {
-            DEBUG_PRINT("reach prvAddNewTaskToReadyList\n");
             uxCurrentNumberOfTasks = ( UBaseType_t ) ( uxCurrentNumberOfTasks + 1U );
 
             if( pxCurrentTCB == NULL )
@@ -2127,7 +2149,6 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
                     if( pxCurrentTCB->uxPriority <= pxNewTCB->uxPriority )
                     {
                         DEBUG_PRINT("change current tcb from %s to %s\n", pxCurrentTCB->pcTaskName, pxNewTCB->pcTaskName);
-                        DEBUG_PRINT("from %d to %d\n", pxCurrentTCB->uxPriority, pxNewTCB->uxPriority);
                         pxCurrentTCB = pxNewTCB;
                     }
                     else
@@ -2151,7 +2172,7 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
             #endif /* configUSE_TRACE_FACILITY */
             traceTASK_CREATE( pxNewTCB );
 
-            DEBUG_PRINT("add task %s to ready list\n", pxNewTCB->pcTaskName);
+            pxNewTCB->xIsMissDDL = pdFALSE;
             prvAddTaskToReadyList( pxNewTCB );
 
             portSETUP_TCB( pxNewTCB );
@@ -2486,6 +2507,7 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
             {
                 mtCOVERAGE_TEST_MARKER();
             }
+            pxCurrentTCB->xIsMissDDL = pdFALSE;
         }
         xAlreadyYielded = xTaskResumeAll();
 
@@ -2533,6 +2555,7 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
                  * This task cannot be in an event list as it is the currently
                  * executing task. */
                 prvAddCurrentTaskToDelayedList( xTicksToDelay, pdFALSE );
+                pxCurrentTCB->xIsMissDDL = pdFALSE;
             }
             xAlreadyYielded = xTaskResumeAll();
         }
@@ -4820,21 +4843,56 @@ void printAllTasks()
     void static ResetAllQueues()  // move all tasks to highest prio queues
     {
         configASSERT(configMAX_PRIORITIES >= 3);
-        for( UBaseType_t i = 2; i < configMAX_PRIORITIES; i++ )
+        for( UBaseType_t i = 1; i < configMAX_PRIORITIES; i++ )
         {
-            configASSERT( listLIST_IS_EMPTY( &( pxReadyTasksLists[ i ] ) ) == pdTRUE );
-        }
-        while( listLIST_IS_EMPTY( &( pxReadyTasksLists[ tskIDLE_PRIORITY + 1 ] ) ) != pdTRUE )
-        {
-            TCB_t *pxTCB = listGET_OWNER_OF_HEAD_ENTRY( &( pxReadyTasksLists[ tskIDLE_PRIORITY + 1 ] ) );
-            listREMOVE_ITEM( &( pxTCB->xStateListItem ) );
-            portMEMORY_BARRIER();
-            pxTCB->uxPriority = configMAX_PRIORITIES - 1;
-            pxTCB->uxRemainingTicks =  1 * configMLFQ_UNIT_TIME_SLICE;
-            prvAddTaskToReadyList( pxTCB );
+            List_t *pxList = &( pxReadyTasksLists[ i ] );
+            while( listLIST_IS_EMPTY( pxList ) != pdTRUE )
+            {
+                TCB_t *pxTCB = listGET_OWNER_OF_HEAD_ENTRY( pxList );
+                listREMOVE_ITEM( &( pxTCB->xStateListItem ) );
+                portMEMORY_BARRIER();
+                pxTCB->uxPriority = configMAX_PRIORITIES - 1;
+                pxTCB->uxRemainingTicks =  1 * configMLFQ_UNIT_TIME_SLICE;
+                prvAddTaskToReadyList( pxTCB );
+            }
         }
     }
 #endif
+
+BaseType_t xJudgePriorityChange( TCB_t *pxTCB )
+{
+    BaseType_t xReturn = pdFALSE;
+
+    #if ( configUSE_EDF_SCHEDULER == 1 )
+    {
+        if( pxTCB->uxAbsDeadline < pxCurrentTCB->uxAbsDeadline )
+        {
+            xReturn = pdTRUE;
+        }
+        else
+        {
+            mtCOVERAGE_TEST_MARKER();
+        }
+    }
+    #else
+    {
+        if( pxTCB->uxPriority > pxCurrentTCB->uxPriority )
+        {
+            xReturn = pdTRUE;
+        }
+        else
+        {
+            mtCOVERAGE_TEST_MARKER();
+        }
+    }
+    #endif
+    if( xReturn == pdTRUE )
+    {
+        printf("PREEEMPTION happends! From %s to %s\n", pxCurrentTCB->pcTaskName, ( pxTCB )->pcTaskName); 
+    }
+
+    return xReturn;
+}
 
 
 BaseType_t xTaskIncrementTick( void )
@@ -4878,6 +4936,17 @@ BaseType_t xTaskIncrementTick( void )
             uxMLFQCount++;
         }
         #endif
+
+        // 判断任务的deadline是否到了
+        {
+            if ( xTickCount > pxCurrentTCB->uxAbsDeadline && pxCurrentTCB->xIsMissDDL == pdFALSE )
+            {
+                // 任务deadline到了，需要切换到idle task
+                xSwitchRequired = pdTRUE;
+                pxCurrentTCB->xIsMissDDL = pdTRUE;
+                printf("[Warning] Task %s missed deadline, current time is %d, DDL is %d, \n",  pxCurrentTCB->pcTaskName, xTickCount, pxCurrentTCB->uxAbsDeadline);
+            }
+        }
 
         /* See if this tick has made a timeout expire.  Tasks are stored in
          * the  queue in the order of their wake time - meaning once one task
@@ -4956,14 +5025,7 @@ BaseType_t xTaskIncrementTick( void )
                              * processing time (which happens when both
                              * preemption and time slicing are on) is
                              * handled below.*/
-                            if( pxTCB->uxPriority > pxCurrentTCB->uxPriority )
-                            {
-                                xSwitchRequired = pdTRUE;
-                            }
-                            else
-                            {
-                                mtCOVERAGE_TEST_MARKER();
-                            }
+                            xSwitchRequired = xJudgePriorityChange( pxTCB );
                         }
                         #else /* #if( configNUMBER_OF_CORES == 1 ) */
                         {
@@ -8969,6 +9031,11 @@ void vTaskResetState( void )
 	{
 		tskTCB * TempTCB;
 		TempTCB = ( tskTCB * )pxTCB;
-	  return TempTCB->uxAbsDeadline = TempTCB->uxDeadLine + xTickCount;
+        TempTCB->uxAbsDeadline = TempTCB->uxDeadLine + xTickCount;
+        if(TempTCB->uxPriority > 0 && TempTCB->pcTaskName != "Tmr Svc\n")
+        {
+            printf("[EDF]: Task %s activate at tick: %d,  Deadline: %d, Absolute Deadline: %d \n", TempTCB->pcTaskName, xTickCount, TempTCB->uxDeadLine, TempTCB->uxAbsDeadline);
+        }
+	    return TempTCB->uxAbsDeadline;
 	}
 #endif	
