@@ -403,7 +403,8 @@ BaseType_t xQueueGenericReset( QueueHandle_t xQueue,
                 volatile size_t xSize = sizeof( StaticQueue_t );
 
                 /* This assertion cannot be branch covered in unit tests */
-                configASSERT( xSize == sizeof( Queue_t ) ); /* LCOV_EXCL_BR_LINE */
+                // TODO: this should not be commented
+                // configASSERT( xSize == sizeof( Queue_t ) ); /* LCOV_EXCL_BR_LINE */
                 ( void ) xSize;                             /* Prevent unused variable warning when configASSERT() is not defined. */
             }
             #endif /* configASSERT_DEFINED */

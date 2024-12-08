@@ -42,6 +42,14 @@
 #include "timers.h"
 #include "stack_macros.h"
 
+#define __DEBUG__ 1
+
+#if __DEBUG__   // 一个宏，用于控制是否打印调试信息，打印方式同printf, 允许接受多个参数
+    #define DEBUG_PRINT( x, ... )    printf( x, ##__VA_ARGS__ ) 
+#else
+    #define DEBUG_PRINT( x, ... )  do {} while( 0 )
+#endif
+
 /* The default definitions are only available for non-MPU ports. The
  * reason is that the stack alignment requirements vary for different
  * architectures.*/
@@ -397,6 +405,9 @@ typedef struct tskTaskControlBlock       /* The old naming convention is used to
 
     #if (configUSE_WEIGHTED_ROUND_ROBIN == 1)
         UBaseType_t uxWeight;                       /**< The weight of the task. */
+    #endif
+
+    #if (configUSE_WEIGHTED_ROUND_ROBIN == 1 || configUSE_MLFQ_SCHEDULER == 1)
         UBaseType_t uxRemainingTicks;               /**< The remaining ticks of the task. */
     #endif
 
@@ -522,7 +533,7 @@ PRIVILEGED_DATA static volatile BaseType_t xNumOfOverflows = ( BaseType_t ) 0;
 PRIVILEGED_DATA static UBaseType_t uxTaskNumber = ( UBaseType_t ) 0U;
 PRIVILEGED_DATA static volatile TickType_t xNextTaskUnblockTime = ( TickType_t ) 0U; /* Initialised to portMAX_DELAY before the scheduler starts. */
 PRIVILEGED_DATA static TaskHandle_t xIdleTaskHandles[ configNUMBER_OF_CORES ];       /**< Holds the handles of the idle tasks.  The idle tasks are created automatically when the scheduler is started. */
-
+PRIVILEGED_DATA static volatile UBaseType_t uxMLFQCount = ( UBaseType_t ) 0U;
 /* Improve support for OpenOCD. The kernel tracks Ready tasks via priority lists.
  * For tracking the state of remote threads, OpenOCD uses uxTopUsedPriority
  * to determine the number of priority lists to read back from the remote target. */
@@ -1931,7 +1942,18 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
         mtCOVERAGE_TEST_MARKER();
     }
 
-    pxNewTCB->uxPriority = uxPriority;
+    #if ( configUSE_MLFQ_SCHEDULER == 1 )
+    {
+        // 只有task的name不是系统任务且优先级为0时，才将其优先级设置为configMAX_PRIORITIES
+        if( ( pcName != NULL ) && ( strcmp( pcName, "IDLE" ) != 0 ) && uxPriority == 0)
+        {
+            DEBUG_PRINT("task name: %s, priority: %d\n", pcName, uxPriority);
+            pxNewTCB->uxPriority = configMAX_PRIORITIES - 1;
+        }
+    }
+    #else   
+        pxNewTCB->uxPriority = uxPriority;
+    #endif
     #if ( configUSE_MUTEXES == 1 )
     {
         pxNewTCB->uxBasePriority = uxPriority;
@@ -2044,6 +2066,13 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
         pxNewTCB->uxRemainingTicks = pxNewTCB->uxWeight * configSLICE_INTERVAL;
     }
     #endif
+
+    #if (configUSE_MLFQ_SCHEDULER == 1)
+    {
+        pxNewTCB->uxRemainingTicks = 1 * configMLFQ_UNIT_TIME_SLICE;;
+    }
+    #endif
+
     if( pxCreatedTask != NULL )
     {
         /* Pass the handle out in an anonymous way.  The handle can be used to
@@ -2065,13 +2094,14 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
          * updated. */
         taskENTER_CRITICAL();
         {
+            DEBUG_PRINT("reach prvAddNewTaskToReadyList\n");
             uxCurrentNumberOfTasks = ( UBaseType_t ) ( uxCurrentNumberOfTasks + 1U );
 
             if( pxCurrentTCB == NULL )
             {
                 /* There are no other tasks, or all the other tasks are in
                  * the suspended state - make this the current task. */
-                printf("change current tcb from NULL to %s\n", pxNewTCB->pcTaskName);
+                DEBUG_PRINT("change current tcb from NULL to %s\n", pxNewTCB->pcTaskName);
 
                 pxCurrentTCB = pxNewTCB;
 
@@ -2096,7 +2126,8 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
                 {
                     if( pxCurrentTCB->uxPriority <= pxNewTCB->uxPriority )
                     {
-                        printf("change current tcb from %s to %s\n", pxCurrentTCB->pcTaskName, pxNewTCB->pcTaskName);
+                        DEBUG_PRINT("change current tcb from %s to %s\n", pxCurrentTCB->pcTaskName, pxNewTCB->pcTaskName);
+                        DEBUG_PRINT("from %d to %d\n", pxCurrentTCB->uxPriority, pxNewTCB->uxPriority);
                         pxCurrentTCB = pxNewTCB;
                     }
                     else
@@ -2120,7 +2151,7 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
             #endif /* configUSE_TRACE_FACILITY */
             traceTASK_CREATE( pxNewTCB );
 
-            printf("add task %s to ready list\n", pxNewTCB->pcTaskName);
+            DEBUG_PRINT("add task %s to ready list\n", pxNewTCB->pcTaskName);
             prvAddTaskToReadyList( pxNewTCB );
 
             portSETUP_TCB( pxNewTCB );
@@ -4055,8 +4086,8 @@ BaseType_t xTaskResumeAll( void )
                         /* coverity[misra_c_2012_rule_11_5_violation] */
                         pxTCB = listGET_OWNER_OF_HEAD_ENTRY( ( &xPendingReadyList ) );
                         listREMOVE_ITEM( &( pxTCB->xEventListItem ) );
-                        portMEMORY_BARRIER();
                         listREMOVE_ITEM( &( pxTCB->xStateListItem ) );
+                        portMEMORY_BARRIER();
                         prvAddTaskToReadyList( pxTCB );
 
                         #if ( configNUMBER_OF_CORES == 1 )
@@ -4737,10 +4768,10 @@ void printAllTasks()
     {
         uxArraySize = uxTaskGetSystemState(pxTaskStatusArray, uxArraySize, NULL);
 
-        printf("Current TCB Info:\n");
+        DEBUG_PRINT("Current TCB Info:\n");
         for (UBaseType_t i = 0; i < uxArraySize; i++)
         {
-            printf("Task: %s, Priority: %d, State: %d\n",
+            DEBUG_PRINT("Task: %s, Priority: %d, State: %d\n",
                    pxTaskStatusArray[i].pcTaskName,
                    pxTaskStatusArray[i].uxCurrentPriority,
                    pxTaskStatusArray[i].eCurrentState);
@@ -4749,6 +4780,61 @@ void printAllTasks()
         vPortFree(pxTaskStatusArray);
     }
 }
+
+#if ( configUSE_MLFQ_SCHEDULER == 1 )
+
+    void static moveTaskToLowerQueue( TCB_t *pxTCB )
+    {
+        UBaseType_t uxCurrentPriority = pxTCB->uxPriority;
+
+        if( uxCurrentPriority > 1U )
+        {
+            UBaseType_t uxNewPriority = uxCurrentPriority - 1;
+            /* Remove the task from the current ready list. */
+            if( listLIST_ITEM_CONTAINER( &( pxTCB->xStateListItem ) ) != NULL )
+            {
+                DEBUG_PRINT("Task %s is removed from the current ready list\n", pxTCB->pcTaskName);
+                listREMOVE_ITEM( &( pxTCB->xStateListItem ) );
+            }
+
+            /* If current list is empty, update uxTopReadyPriority. */
+            if( listLIST_IS_EMPTY( &( pxReadyTasksLists[ uxCurrentPriority ] ) ) == pdTRUE )
+            {
+                DEBUG_PRINT("Current priority queue is empty, set uxTopReadyPriority to %d\n", uxNewPriority);
+                uxTopReadyPriority = uxNewPriority;
+            }
+
+            /* Place the task in the new ready list. */
+            DEBUG_PRINT("Task %s is added to the new ready list\n", pxTCB->pcTaskName);
+            pxTCB->uxPriority = uxNewPriority;
+            pxTCB->uxRemainingTicks = ( configMAX_PRIORITIES - uxNewPriority) * configMLFQ_UNIT_TIME_SLICE;
+            prvAddTaskToReadyList( pxTCB );
+
+        }
+        else {
+            // Task is already in the lowest priority queue
+            pxTCB->uxRemainingTicks = ( configMAX_PRIORITIES - 1) * configMLFQ_UNIT_TIME_SLICE;
+        }
+    }
+
+    void static ResetAllQueues()  // move all tasks to highest prio queues
+    {
+        configASSERT(configMAX_PRIORITIES >= 3);
+        for( UBaseType_t i = 2; i < configMAX_PRIORITIES; i++ )
+        {
+            configASSERT( listLIST_IS_EMPTY( &( pxReadyTasksLists[ i ] ) ) == pdTRUE );
+        }
+        while( listLIST_IS_EMPTY( &( pxReadyTasksLists[ tskIDLE_PRIORITY + 1 ] ) ) != pdTRUE )
+        {
+            TCB_t *pxTCB = listGET_OWNER_OF_HEAD_ENTRY( &( pxReadyTasksLists[ tskIDLE_PRIORITY + 1 ] ) );
+            listREMOVE_ITEM( &( pxTCB->xStateListItem ) );
+            portMEMORY_BARRIER();
+            pxTCB->uxPriority = configMAX_PRIORITIES - 1;
+            pxTCB->uxRemainingTicks =  1 * configMLFQ_UNIT_TIME_SLICE;
+            prvAddTaskToReadyList( pxTCB );
+        }
+    }
+#endif
 
 
 BaseType_t xTaskIncrementTick( void )
@@ -4786,6 +4872,12 @@ BaseType_t xTaskIncrementTick( void )
         {
             mtCOVERAGE_TEST_MARKER();
         }
+
+        #if ( configUSE_MLFQ_SCHEDULER )
+        {
+            uxMLFQCount++;
+        }
+        #endif
 
         /* See if this tick has made a timeout expire.  Tasks are stored in
          * the  queue in the order of their wake time - meaning once one task
@@ -4891,28 +4983,30 @@ BaseType_t xTaskIncrementTick( void )
         {
             #if ( configNUMBER_OF_CORES == 1 )
             {
-                #if ( configUSE_WEIGHTED_ROUND_ROBIN == 1 )
+                #if ( configUSE_WEIGHTED_ROUND_ROBIN == 1 || configUSE_MLFQ_SCHEDULER == 1 )
                 {  
                     if( pxCurrentTCB->uxPriority != tskIDLE_PRIORITY )
-                    {
-                        if( pxCurrentTCB->uxWeight > ( BaseType_t ) 0U )
-                        {
+                    {                        
+                            // DEBUG_PRINT("task name: %s, remaining ticks: %d\n", pxCurrentTCB->pcTaskName, pxCurrentTCB->uxRemainingTicks);
                             pxCurrentTCB->uxRemainingTicks -= 1U;
 
                             if( pxCurrentTCB->uxRemainingTicks == ( TickType_t ) 0U )
                             {
                                 xSwitchRequired = pdTRUE;
-                                pxCurrentTCB->uxRemainingTicks = pxCurrentTCB->uxWeight * configSLICE_INTERVAL;
+                                #if ( configUSE_MLFQ_SCHEDULER == 1 )
+                                {
+                                    moveTaskToLowerQueue( pxCurrentTCB );
+                                }
+                                #else /* #if ( configUSE_MLFQ_SCHEDULER == 1 ) */
+                                {
+                                    pxCurrentTCB->uxRemainingTicks = pxCurrentTCB->uxWeight * configSLICE_INTERVAL;
+                                }
+                                #endif /* #if ( configUSE_MLFQ_SCHEDULER == 1 ) */
                             }
                             else
                             {
                                 mtCOVERAGE_TEST_MARKER();
                             }
-                        }
-                        else
-                        {
-                            mtCOVERAGE_TEST_MARKER();
-                        }
                     }
                     else
                     {
@@ -5011,6 +5105,17 @@ BaseType_t xTaskIncrementTick( void )
             #endif /* #if ( configNUMBER_OF_CORES == 1 ) */
         }
         #endif /* #if ( configUSE_PREEMPTION == 1 ) */
+
+        #if ( configUSE_MLFQ_SCHEDULER == 1 )
+        {
+            if( uxMLFQCount >= configMLFQ_LOOP_TIME_SLICE )
+            {
+                DEBUG_PRINT("MLFQ one loop finished\n");
+                uxMLFQCount = 0;
+                ResetAllQueues();
+            }
+        }
+        #endif
     }
     else
     {
@@ -6118,6 +6223,21 @@ static portTASK_FUNCTION( prvIdleTask, pvParameters )
 #endif /* portUSING_MPU_WRAPPERS */
 /*-----------------------------------------------------------*/
 
+#if (configUSE_MLFQ_SCHEDULER == 1)
+//TODO: 这个代码似乎不需要，slice和priority可以都存储在TCB中
+static void setReadyListPriority( void )
+{
+    UBaseType_t uxPriority;
+
+    for( uxPriority = ( UBaseType_t ) 1U; uxPriority < ( UBaseType_t ) configMAX_PRIORITIES; uxPriority++ )  // start from 1 to skip the idle task
+    {
+        pxReadyTasksLists[ uxPriority ].uxPriority = uxPriority;
+        pxReadyTasksLists[ uxPriority ].uxTimeSlice = ( configMAX_PRIORITIES - uxPriority ) * configMLFQ_UNIT_TIME_SLICE;
+    }
+}
+
+#endif
+
 static void prvInitialiseTaskLists( void )
 {
     UBaseType_t uxPriority;
@@ -6126,6 +6246,11 @@ static void prvInitialiseTaskLists( void )
     {
         vListInitialise( &( pxReadyTasksLists[ uxPriority ] ) );
     }
+    #if (configUSE_MLFQ_SCHEDULER == 1)
+    {
+        setReadyListPriority();
+    }
+    #endif
 
     vListInitialise( &xDelayedTaskList1 );
     vListInitialise( &xDelayedTaskList2 );
