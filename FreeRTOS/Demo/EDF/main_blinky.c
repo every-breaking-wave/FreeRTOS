@@ -124,7 +124,7 @@ static BaseType_t isTimeout = pdFALSE;
 /* Test functions */
 unsigned long ulTaskNumber[configEXPECTED_NO_RUNNING_TASKS];
 
-BaseType_t T3_soft_deadline = 300;
+BaseType_t T3_soft_deadline = 1000;
 BaseType_t T_punish_runtime = 0;
 
 static void T1(void *pvParameters);
@@ -146,19 +146,22 @@ void main_blinky(void)
 
 
     pvParameter_t param[4];
-    for(int i = 0; i < 4; i++)
-        param[i].uxWeight = 0;
-    param[0].uxDeadLine = 100;
-    param[1].uxDeadLine = 1400;
-    param[2].uxDeadLine = 1000;
-    param[3].uxDeadLine = 2000;
+    
+    param[0].uxWeight = 5;
+    param[1].uxWeight = 10;
+    param[2].uxWeight = 1;
+    param[3].uxWeight = 3;
+    param[0].uxDeadLine = 700;
+    param[1].uxDeadLine = 400;
+    param[2].uxDeadLine = 2000;
+    param[3].uxDeadLine = 600;
     if (xQueue != NULL) {
         // Create an eternal task evoked periodically for creating new tasks
-        xTaskCreate(T1, "task1", configMINIMAL_STACK_SIZE, &param[0], configMAX_PRIORITIES-1, &(xT[0]));
-        xTaskCreate(T2, "task2", configMINIMAL_STACK_SIZE, &param[1], configMAX_PRIORITIES-2, &(xT[1]));
+        xTaskCreate(T1, "task1", configMINIMAL_STACK_SIZE, &param[0], 4, &(xT[0]));
+        xTaskCreate(T2, "task2", configMINIMAL_STACK_SIZE, &param[1], 8, &(xT[1]));
         //xTaskCreate(T3, "task3", configMINIMAL_STACK_SIZE, &param[2], configMAX_PRIORITIES-3, &(xT[2]));
-        // xTaskCreate(T3_soft, "task3_soft", configMINIMAL_STACK_SIZE, &param[2], configMAX_PRIORITIES-3, &(xT[4]));
-        xTaskCreate(T4, "task4", configMINIMAL_STACK_SIZE, &param[3], configMAX_PRIORITIES-4, &(xT[3]));
+        xTaskCreate(T3_soft, "task3_soft", configMINIMAL_STACK_SIZE, &param[2], 1, &(xT[4]));
+        xTaskCreate(T4, "task4", configMINIMAL_STACK_SIZE, &param[3], 2, &(xT[3]));
     }
 
     vTaskStartScheduler();
@@ -177,7 +180,7 @@ void main_blinky(void)
 static void T1(void *pvParameters)
 {
     TickType_t previousTime = xTaskGetTickCount();
-    TickType_t runtime = 100, period = 500;
+    TickType_t runtime = 200, period = 800;
     int iterNum = 0;
     BaseType_t loopCount = durationToLoop(runtime);
     for(;;) {
@@ -192,7 +195,7 @@ static void T1(void *pvParameters)
 static void T2(void *pvParameters)
 {
     TickType_t previousTime = xTaskGetTickCount();
-    TickType_t runtime = 1000, period = 1500;
+    TickType_t runtime = 100, period = 500;
     int iterNum = 0;
     BaseType_t loopCount = durationToLoop(runtime);
     for(;;) {
@@ -225,7 +228,7 @@ static void T3(void *pvParameters)
 static void T4(void *pvParameters)
 {
     TickType_t previousTime = xTaskGetTickCount();
-    TickType_t runtime = 500, period = 4000;
+    TickType_t runtime = 300, period = 2000;
     int iterNum = 0;
     BaseType_t loopCount = durationToLoop(runtime);
     for(;;) {
@@ -241,7 +244,7 @@ static void T4(void *pvParameters)
 static void T3_soft(void *pvParameters)
 {
     TickType_t previousTime = xTaskGetTickCount();
-    TickType_t runtime = 300, period = 2000;
+    TickType_t runtime = 495, period = 4000;
     int iterNum = 0;
     for(;;) {
         TickType_t startTime = xTaskGetTickCount();
@@ -257,10 +260,10 @@ static void T3_soft(void *pvParameters)
             printf("[iter:%d] task3_soft pass the soft deadline\n", iterNum);
             T_punish_runtime = endTime - startTime - T3_soft_deadline;
             pvParameter_t param_soft;
-            param_soft.uxWeight = 0;
+            param_soft.uxWeight = ((pvParameter_t *)pvParameters)->uxWeight;
             param_soft.uxDeadLine = runtime;
             printf("[iter:%d] task3_soft create a punished task, name:T_punish, deadline:%d, runtime:%d\n", iterNum, param_soft.uxDeadLine, T_punish_runtime);
-            // xTaskCreate(T_punish, (signed char *)"T_punish", 512, (void *)&param_soft, configMAX_PRIORITIES-3, &xT[5]);
+            xTaskCreate(T_punish, (signed char *)"T_punish", 512, (void *)&param_soft, 1, &xT[5]);
         }
         iterNum++;
         xTaskDelayUntil(&previousTime, period);
