@@ -64,8 +64,7 @@
  * If mainCREATE_SIMPLE_BLINKY_DEMO_ONLY is not 1 then the comprehensive test and
  * demo application will be built.  The comprehensive test and demo application is
  * implemented and described in main_full.c. */
-#define mainCREATE_SIMPLE_BLINKY_DEMO_ONLY    0
-#define mainCREATE_TEST 1
+#define mainCREATE_SIMPLE_BLINKY_DEMO_ONLY    1
 
 /* printf() output uses the UART.  These constants define the addresses of the
  * required UART registers. */
@@ -82,7 +81,6 @@
  */
 extern void main_blinky( void );
 extern void main_full( void );
-extern void main_test( void );
 
 /*
  * Only the comprehensive demo uses application hook (callback) functions.  See
@@ -111,10 +109,6 @@ void main( void )
     #if ( mainCREATE_SIMPLE_BLINKY_DEMO_ONLY == 1 )
     {
         main_blinky();
-    }
-    #elif (mainCREATE_TEST == 1)
-    {
-        main_test();
     }
     #else
     {

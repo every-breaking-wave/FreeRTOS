@@ -286,6 +286,38 @@
 
 /*-----------------------------------------------------------*/
 
+void printAllTasks()
+{
+    UBaseType_t uxArraySize = uxTaskGetNumberOfTasks();
+    if (uxArraySize == 0)
+    {
+        DEBUG_PRINT("No tasks available.\n");
+        return;
+    }
+
+    TaskStatus_t *pxTaskStatusArray = pvPortMalloc( uxArraySize * sizeof( TaskStatus_t ) );
+
+    if (pxTaskStatusArray == NULL)
+    {
+        DEBUG_PRINT("Memory allocation failed.\n");
+        return;
+    }
+
+    uxArraySize = uxTaskGetSystemState(pxTaskStatusArray, uxArraySize, NULL);
+
+    DEBUG_PRINT("Current TCB Info:\n");
+    for (UBaseType_t i = 0; i < uxArraySize; i++)
+    {
+        DEBUG_PRINT("Task: %s, Priority: %d, State: %d\n",
+                   pxTaskStatusArray[i].pcTaskName,
+                   pxTaskStatusArray[i].uxCurrentPriority,
+                   pxTaskStatusArray[i].eCurrentState);
+    }
+
+    vPortFree(pxTaskStatusArray);
+}
+
+
 /*
  * Place the task represented by pxTCB into the appropriate ready list for
  * the task.  It is inserted at the end of the list.
@@ -4778,27 +4810,7 @@ BaseType_t xTaskCatchUpTicks( TickType_t xTicksToCatchUp )
 #endif /* INCLUDE_xTaskAbortDelay */
 /*----------------------------------------------------------*/
 
-void printAllTasks()
-{
-    UBaseType_t uxArraySize = uxTaskGetNumberOfTasks();
-    TaskStatus_t *pxTaskStatusArray = pvPortMalloc( uxArraySize * sizeof( TaskStatus_t ) );
 
-    if (pxTaskStatusArray != NULL)
-    {
-        uxArraySize = uxTaskGetSystemState(pxTaskStatusArray, uxArraySize, NULL);
-
-        DEBUG_PRINT("Current TCB Info:\n");
-        for (UBaseType_t i = 0; i < uxArraySize; i++)
-        {
-            DEBUG_PRINT("Task: %s, Priority: %d, State: %d\n",
-                   pxTaskStatusArray[i].pcTaskName,
-                   pxTaskStatusArray[i].uxCurrentPriority,
-                   pxTaskStatusArray[i].eCurrentState);
-        }
-
-        vPortFree(pxTaskStatusArray);
-    }
-}
 
 #if ( configUSE_MLFQ_SCHEDULER == 1 )
 

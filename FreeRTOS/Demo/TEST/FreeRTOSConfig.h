@@ -39,7 +39,14 @@
  * See http://www.freertos.org/a00110.html
  *----------------------------------------------------------*/
 
-#define configUSE_TRACE_FACILITY 0
+// choose target scheduling system in compiling phase
+
+#define configUSE_DEFAULT_SCHEDULING
+// #define configUSE_EDF_SCHEDULING
+// #define configUSE_RR_SCHEDULING
+// #define configUSE_WRR_SCHEDULING
+
+#define configUSE_TRACE_FACILITY 1
 #define configGENERATE_RUN_TIME_STATS 0
 
 #define configUSE_PREEMPTION 1
@@ -51,7 +58,7 @@
 #define configMINIMAL_STACK_SIZE ((unsigned short)80)
 #define configTOTAL_HEAP_SIZE ((size_t)(60 * 1024))
 #define configMAX_TASK_NAME_LEN (12)
-#define configUSE_TRACE_FACILITY 0
+#define configUSE_TRACE_FACILITY 1
 #define configUSE_16_BIT_TICKS 0
 #define configIDLE_SHOULD_YIELD 0
 #define configUSE_CO_ROUTINES 0
@@ -137,6 +144,23 @@ void vAssertCalled(const char *pcFileName,
 
 #define configEXPECTED_NO_RUNNING_TASKS (5)
 
-#define configUSE_EDF_SCHEDULER 1
+#ifdef configUSE_DEFAULT_SCHEDULING
+
+#endif
+
+#ifdef configUSE_EDF_SCHEDULING
+    #define configUSE_EDF_SCHEDULER 1
+#endif
+
+#ifdef configUSE_RR_SCHEDULING
+    #define configUSE_EDF_SCHEDULER 0
+    #define configUSE_TIME_SLICING                   1
+#endif
+
+#ifdef configUSE_WRR_SCHEDULING
+    #define configUSE_TIME_SLICING                   1
+    #define configSLICE_INTERVAL                     ( ( TickType_t ) 10 )
+    #define configUSE_WEIGHTED_ROUND_ROBIN           1
+#endif
 
 #endif /* FREERTOS_CONFIG_H */
