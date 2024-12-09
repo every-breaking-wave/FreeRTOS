@@ -101,6 +101,12 @@ typedef const struct tskTaskControlBlock   * ConstTaskHandle_t;
  */
 typedef BaseType_t (* TaskHookFunction_t)( void * arg );
 
+typedef struct pvParameter
+{
+    UBaseType_t uxWeight;
+    TickType_t uxDeadLine;
+} pvParameter_t;
+
 /* Task states returned by eTaskGetState. */
 typedef enum
 {

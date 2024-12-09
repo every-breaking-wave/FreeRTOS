@@ -62,79 +62,99 @@
 /* Kernel includes. */
 #include "FreeRTOS.h"
 #include "task.h"
-// #include "timers.h"
+#include "timers.h"
 #include "queue.h"
+#include "semphr.h"
+#include "portmacro.h"
 
 /* Priorities at which the tasks are created. */
-#define mainQUEUE_RECEIVE_TASK_PRIORITY    ( tskIDLE_PRIORITY + 2 )
-#define mainQUEUE_SEND_TASK_PRIORITY       ( tskIDLE_PRIORITY + 1 )
+#define mainQUEUE_RECEIVE_TASK_PRIORITY (tskIDLE_PRIORITY + 2)
+#define mainQUEUE_SEND_TASK_PRIORITY (tskIDLE_PRIORITY + 1)
 
 /* The rate at which data is sent to the queue.  The times are converted from
  * milliseconds to ticks using the pdMS_TO_TICKS() macro. */
-#define mainTASK_SEND_FREQUENCY_MS         pdMS_TO_TICKS( 200UL )
-#define mainTIMER_SEND_FREQUENCY_MS        pdMS_TO_TICKS( 2000UL )
+#define mainTASK_SEND_FREQUENCY_MS pdMS_TO_TICKS(200UL)
+#define mainTIMER_SEND_FREQUENCY_MS pdMS_TO_TICKS(2000UL)
 
 /* The number of items the queue can hold at once. */
-#define mainQUEUE_LENGTH                   ( 2 )
+#define mainQUEUE_LENGTH (2)
 
 /* The values sent to the queue receive task from the queue send task and the
  * queue send software timer respectively. */
-#define mainVALUE_SENT_FROM_TASK           ( 100UL )
-#define mainVALUE_SENT_FROM_TIMER          ( 200UL )
+#define mainVALUE_SENT_FROM_TASK (100UL)
+#define mainVALUE_SENT_FROM_TIMER (200UL)
+
+#define mainGET_TASK_STATUS(bitmap, i) (((bitmap) >> (i)) & 1)
+#define mainSET_TASK_STATUS(bitmap, i, bit) \
+    do                                      \
+    {                                       \
+        if (bit)                            \
+            (bitmap) |= (1 << (i));         \
+        else                                \
+            (bitmap) &= ~(1 << (i));        \
+    } while (0)
 
 /*-----------------------------------------------------------*/
 
+static BaseType_t durationToLoop(TickType_t duration)
+{
+    return duration * (1000000000 / 1295) ;
+}
 /*
  * The tasks as described in the comments at the top of this file.
  */
-static void prvQueueReceiveTask( void * pvParameters );
-static void prvQueueSendTask( void * pvParameters );
+static void prvQueueReceiveTask(void *pvParameters);
+static void prvQueueSendTask(void *pvParameters);
+
+/*
+ * The callback function executed when the software timer expires.
+ */
+static void prvQueueSendTimerCallback(TimerHandle_t xTimerHandle);
 
 /*-----------------------------------------------------------*/
 
 /* The queue used by both tasks. */
 static QueueHandle_t xQueue = NULL;
 
+/* A software timer that is started from the tick hook. */
+static TimerHandle_t xTimer = NULL;
+
+static BaseType_t isTimeout = pdFALSE;
 
 /* Test functions */
-unsigned long ulTaskNumber[ configEXPECTED_NO_RUNNING_TASKS ];
+unsigned long ulTaskNumber[configEXPECTED_NO_RUNNING_TASKS];
 
-TaskHandle_t xT1;
-TaskHandle_t xT2,xT3,xT4;
+static void T1(void *pvParameters);
+static void T2(void *pvParameters);
+static void T3(void *pvParameters);
+static void T4(void *pvParameters);
 
-static void T1( void *pvParameters );
-static void T2( void *pvParameters );
-static void T3( void *pvParameters );
-static void T4( void *pvParameters );
-
-
-const unsigned long dT1 = 100;
-const unsigned long dT2 = 70;
-const unsigned long dT3 = 10;
-const unsigned long dT4 = 400;
-
-
-/*-----------------------------------------------------------*/
+static TaskHandle_t xT[4];
 
 /*** SEE THE COMMENTS AT THE TOP OF THIS FILE ***/
-void main_blinky( void )
+void main_blinky(void)
 {
     const TickType_t xTimerPeriod = mainTIMER_SEND_FREQUENCY_MS;
 
     /* Create the queue. */
-    xQueue = xQueueCreate( mainQUEUE_LENGTH, sizeof( uint32_t ) );
+    xQueue = xQueueCreate(mainQUEUE_LENGTH, sizeof(uint32_t));
 
-    if( xQueue != NULL )
-    {
-        // vTaskStartScheduler();
-        printf("Starting EDF Scheduler\n");
-        xTaskCreate( T1, ( signed char * ) "T1", configMINIMAL_STACK_SIZE, (void *)&dT1, 1 , &xT1 );		
-        xTaskCreate( T2, ( signed char * ) "T2", configMINIMAL_STACK_SIZE, (void *)&dT2, 1 , &xT2 );
-        xTaskCreate( T3, ( signed char * ) "T3", configMINIMAL_STACK_SIZE, (void *)&dT3, 1 , &xT3 );
-        xTaskCreate( T4, ( signed char * ) "T4", configMINIMAL_STACK_SIZE, (void *)&dT4, 1 , &xT4 );
-            /* Start the tasks running. */
-        vTaskStartScheduler();
+    pvParameter_t param[4];
+    for(int i = 0; i < 4; i++)
+        param[i].uxWeight = 0;
+    param[0].uxDeadLine = 100;
+    param[1].uxDeadLine = 1400;
+    param[2].uxDeadLine = 1000;
+    param[3].uxDeadLine = 2000;
+    if (xQueue != NULL) {
+        // Create an eternal task evoked periodically for creating new tasks
+        xTaskCreate(T1, "task1", configMINIMAL_STACK_SIZE, &param[0], configMAX_PRIORITIES-1, &(xT[0]));
+        xTaskCreate(T2, "task2", configMINIMAL_STACK_SIZE, &param[1], configMAX_PRIORITIES-2, &(xT[1]));
+        xTaskCreate(T3, "task3", configMINIMAL_STACK_SIZE, &param[2], configMAX_PRIORITIES-3, &(xT[2]));
+        xTaskCreate(T4, "task4", configMINIMAL_STACK_SIZE, &param[3], configMAX_PRIORITIES-4, &(xT[3]));
     }
+
+    vTaskStartScheduler();
 
     /* If all is well, the scheduler will now be running, and the following
      * line will never be reached.  If the following line does execute, then
@@ -142,135 +162,71 @@ void main_blinky( void )
      * timer tasks	to be created.  See the memory management section on the
      * FreeRTOS web site for more details.  NOTE: This demo uses static allocation
      * for the idle and timer tasks so this line should never execute. */
-    for( ; ; )
+    for (;;)
     {
     }
 }
-/*-----------------------------------------------------------*/
 
-static void prvQueueSendTask( void * pvParameters )
+static void T1(void *pvParameters)
 {
-    TickType_t xNextWakeTime;
-    const TickType_t xBlockTime = mainTASK_SEND_FREQUENCY_MS;
-    const uint32_t ulValueToSend = mainVALUE_SENT_FROM_TASK;
-
-    /* Prevent the compiler warning about the unused parameter. */
-    ( void ) pvParameters;
-
-    /* Initialise xNextWakeTime - this only needs to be done once. */
-    xNextWakeTime = xTaskGetTickCount();
-
-    for( ; ; )
-    {
-        /* Place this task in the blocked state until it is time to run again.
-         * The block time is specified in ticks, pdMS_TO_TICKS() was used to
-         * convert a time specified in milliseconds into a time specified in ticks.
-         * While in the Blocked state this task will not consume any CPU time. */      
-        vTaskDelayUntil( &xNextWakeTime, xBlockTime );
-
-        /* Send to the queue - causing the queue receive task to unblock and
-         * write to the console.  0 is used as the block time so the send operation
-         * will not block - it shouldn't need to block as the queue should always
-         * have at least one space at this point in the code. */
-        xQueueSend( xQueue, &ulValueToSend, 0U );
+    TickType_t previousTime = xTaskGetTickCount();
+    TickType_t runtime = 100, period = 500;
+    int iterNum = 0;
+    BaseType_t loopCount = durationToLoop(runtime);
+    for(;;) {
+        TickType_t startTime = xTaskGetTickCount();
+        printf("[iter:%d] task1 in starts at %d\n", iterNum, startTime);
+        for(int i = 0; i < loopCount; i++);
+        printf("[iter:%d] task1 ends at %d\n", iterNum, xTaskGetTickCount());
+        xTaskDelayUntil(&previousTime, period);
     }
 }
-/*-----------------------------------------------------------*/
 
-
-
-static void prvQueueReceiveTask( void * pvParameters )
+static void T2(void *pvParameters)
 {
-    uint32_t ulReceivedValue;
-
-    /* Prevent the compiler warning about the unused parameter. */
-    ( void ) pvParameters;
-
-    for( ; ; )
-    {
-        /* Wait until something arrives in the queue - this task will block
-         * indefinitely provided INCLUDE_vTaskSuspend is set to 1 in
-         * FreeRTOSConfig.h.  It will not use any CPU time while it is in the
-         * Blocked state. */
-        xQueueReceive( xQueue, &ulReceivedValue, portMAX_DELAY );
-
-        /*  To get here something must have been received from the queue, but
-         * is it an expected value? */
-        if( ulReceivedValue == mainVALUE_SENT_FROM_TASK )
-        {
-            /* It is normally not good to call printf() from an embedded system,
-             * although it is ok in this simulated case. */
-            printf( "Message received from task\r\n" );
-        }
-        else if( ulReceivedValue == mainVALUE_SENT_FROM_TIMER )
-        {
-            printf( "Message received from software timer\r\n" );
-        }
-        else
-        {
-            printf( "Unexpected message\r\n" );
-        }
+    TickType_t previousTime = xTaskGetTickCount();
+    TickType_t runtime = 1000, period = 1500;
+    int iterNum = 0;
+    BaseType_t loopCount = durationToLoop(runtime);
+    for(;;) {
+        TickType_t startTime = xTaskGetTickCount();
+        printf("[iter:%d] task2 in starts at %d\n", iterNum, startTime);
+        for(int i = 0; i < loopCount; i++);
+        printf("[iter:%d] task2 ends at %d\n", iterNum, xTaskGetTickCount());
+        iterNum++;
+        xTaskDelayUntil(&previousTime, period);
     }
 }
-/*-----------------------------------------------------------*/
 
 
-
-/*-----------------------------------------------------------*/
-
-static void T1( void *pvParameters )
+static void T3(void *pvParameters)
 {
-	unsigned int i = 0;
-	while(1)
-	{	
-		//i = 0xFFFFFFFE + 0xA;
-		//printf("%x\n", i);
-	 printf("T1 Executing\n");
-	 for(i = 0;i < 90000000; i++);
-    TickType_t currentTick = xTaskGetTickCount();
-    printf("T1 completed at tick: %u\n", currentTick);
-	 vTaskDelay( 10 / portTICK_PERIOD_MS );	
-  }
+    TickType_t previousTime = xTaskGetTickCount();
+    TickType_t runtime = 300, period = 2000;
+    int iterNum = 0;
+    BaseType_t loopCount = durationToLoop(runtime);
+    for(;;) {
+        TickType_t startTime = xTaskGetTickCount();
+        printf("[iter:%d] task3 in starts at %d\n", iterNum, startTime);
+        for(int i = 0; i < loopCount; i++);
+        printf("[iter:%d] task3 ends at %d\n", iterNum, xTaskGetTickCount());
+        iterNum++;
+        xTaskDelayUntil(&previousTime, period);
+    }
 }
 
-
-static void T2( void *pvParameters )
+static void T4(void *pvParameters)
 {
-	unsigned long i = 0; 
-	while(1)
-	{
-		printf("T2 executing\n");
-		for(i = 0;i < 90000000; i++);
-    TickType_t currentTick = xTaskGetTickCount();
-    printf("T2 completed at tick: %u\n", currentTick);		vTaskDelay( 20 / portTICK_PERIOD_MS);
-	}
+    TickType_t previousTime = xTaskGetTickCount();
+    TickType_t runtime = 500, period = 4000;
+    int iterNum = 0;
+    BaseType_t loopCount = durationToLoop(runtime);
+    for(;;) {
+        TickType_t startTime = xTaskGetTickCount();
+        printf("[iter:%d] task4 in starts at %d\n", iterNum, startTime);
+        for(int i = 0; i < loopCount; i++);
+        printf("[iter:%d] task4 ends at %d\n", iterNum, xTaskGetTickCount());
+        iterNum++;
+        xTaskDelayUntil(&previousTime, period);
+    }
 }
-
-static void T3( void *pvParameters )
-{
-	int i = 0;
-	while(1)
-	{	
-	 printf("T3 Executing\n");
-	 for(i = 0;i < 9000000; i++);
-    // 任务结束时打印当前 tick 值
-    TickType_t currentTick = xTaskGetTickCount();
-    printf("T3 completed at tick: %u\n", currentTick);
-	 vTaskDelay( 30 / portTICK_PERIOD_MS );	
-  }
-}
-
-
-static void T4( void *pvParameters )
-{
-	unsigned long i = 0; 
-	while(1)
-	{
-		printf("T4 executing\n");
-	  for(i = 0;i < 90000000; i++);
-    TickType_t currentTick = xTaskGetTickCount();
-    printf("T4 completed at tick: %u\n", currentTick);
-		vTaskDelay( 40 / portTICK_PERIOD_MS);
-	}
-}
-
